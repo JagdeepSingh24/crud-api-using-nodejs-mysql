@@ -9,7 +9,7 @@ const mysql = require("mysql");
 const req = require('express/lib/request');
 const SendmailTransport = require('nodemailer/lib/sendmail-transport');
 const { response } = require('express');
-var multer  = require('multer');
+var multer = require('multer');
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({
     extended: false
@@ -19,18 +19,18 @@ app.use(express.static(__dirname + '/public'));
 app.use('/uploads', express.static('uploads'));
 var storage = multer.diskStorage({
     destination: function (req, file, cb) {
-      cb(null, './uploads')
-      console.log("here in destination in storage")
+        cb(null, './uploads')
+        console.log("here in destination in storage")
     },
     filename: function (req, file, cb) {
-      cb(null, file.originalname)
-      console.log("here in filename in storage")
+        cb(null, file.originalname)
+        console.log("here in filename in storage")
     }
 })
 
 
-var upload = multer({ 
-    storage: storage,    
+var upload = multer({
+    storage: storage,
 })
 
 app.get('/', function (req, res) {
@@ -87,50 +87,52 @@ dbconn.connect((err) => {
     else console.log("Connected");
 });
 
-app.put("/image/:id",upload.single("image"),async (req,res)=>{
-    
-    console.log("here in image")
-    
-    console.log("=======",req.body);
-    console.log("=====req.file", req.file)
-    
-    if(req.file){
+app.put("/image/:id", upload.single("image"), async (req, res) => {
 
-        const pathname=req.file.path;
-        console.log("pathname",pathname);
-        console.log("req.file",req.file);
-        res.send({file: req.file,
-            path:pathname});
+    console.log("here in image")
+
+    console.log("=======", req.body);
+    console.log("=====req.file", req.file)
+
+    if (req.file) {
+
+        const pathname = req.file.path;
+        console.log("pathname", pathname);
+        console.log("req.file", req.file);
+        res.send({
+            file: req.file,
+            path: pathname
+        });
     }
-    image= req.file.path;
+    image = req.file.path;
     Id = req.params.id;
-    let sql=`UPDATE users SET image="${image}" WHERE Id="${Id}";`;
-    dbconn.query(sql,(err, result)=>{
-        if(err) throw err;
-        else{
+    let sql = `UPDATE users SET image="${image}" WHERE Id="${Id}";`;
+    dbconn.query(sql, (err, result) => {
+        if (err) throw err;
+        else {
             console.log(result);
         }
     })
 });
 
-app.get("/count", (req,res)=>{
+app.get("/count", (req, res) => {
     let num1;
     let num2;
-    let sql =`SELECT COUNT(*) AS num FROM users WHERE verified="verified";`;
-    dbconn.query(sql,(err,result)=>{
-        if(err) throw err;
-        else{
+    let sql = `SELECT COUNT(*) AS num FROM users WHERE verified="verified";`;
+    dbconn.query(sql, (err, result) => {
+        if (err) throw err;
+        else {
             console.log(result)
             num1 = result[0].num;
         }
     })
     sql = `SELECT COUNT(*) AS num FROM users WHERE verified="notVerified";`;
-    dbconn.query(sql,(err,result)=>{
-        if(err) throw err;
-        else{
+    dbconn.query(sql, (err, result) => {
+        if (err) throw err;
+        else {
             console.log(result)
             num2 = result[0].num
-            res.send({"notVerified":num2,"verified": num1})
+            res.send({ "notVerified": num2, "verified": num1 })
         }
     })
 });
@@ -164,7 +166,9 @@ app.post("/login", (req, res) => {
                             }
 
                         } else {
-                            if (verify === "notVerified") {
+                            if (verify === "verified") {
+                                res.status(401).send({ message: "Invalid password or email.." });
+                            } else if (v1 === password) {
                                 // res.send("notVerified")
                                 res.send({ "status": "notVerified", "token": `${loginToken}` });
                             } else {
@@ -380,75 +384,88 @@ app.post('/password', async (req, res) => {
     let num = 1;
     let userId;
     let token;
-    let sql = `SELECT Id FROM users WHERE email="${email}";`;
+    let sql = `SELECT COUNT(*) AS num FROM users WHERE email="${email}";`;
     dbconn.query(sql, (err, result) => {
         if (err) throw err;
         else {
-            console.log("ID", result[0].Id);
-            userId = result[0].Id;
+            console.log("Count", result[0].num);
+            let num = result[0].num
+            if (num != 0) {
+                sql = `SELECT Id FROM users WHERE email="${email}";`;
+                dbconn.query(sql, (err, result) => {
+                    if (err) throw err;
+                    else {
+                        console.log("ID", result[0].Id);
+                        userId = result[0].Id;
+                    }
+                })
+                let check = true;
+                // for (let i = 0; i < 5; i++)
+
+                console.log("i", num);
+
+                require('crypto').randomBytes(48, async function (err, buffer) {
+                    token = buffer.toString('hex');
+                    console.log("==========>", token)
+                    let sql = `SELECT COUNT(*) AS num FROM resetPassword WHERE token="${token}"`;
+                    await dbconn.query(sql, function (err, result) {
+                        if (err) throw err;
+                        else {
+                            console.log("result: ", result[0].num);
+                            num = result[0].num;
+                            if (num == 0) {
+                                console.log("here  ")
+                                sql = `UPDATE resetPassword SET status = "expires" WHERE userId="${userId}" AND status = "unused";`;
+                                dbconn.query(sql, (err, result) => {
+                                    if (err) throw err;
+                                    else {
+                                        console.log("<<<<< ", result, " >>>>>>>>>")
+                                    }
+                                })
+                                sql = `INSERT INTO resetPassword(token,userId) VALUES("${token}","${userId}");`;
+                                dbconn.query(sql, (err, result) => {
+                                    if (err) throw err;
+                                    else {
+
+                                        res.status("200").send(result);
+                                        var transporter = nodemailer.createTransport({
+                                            service: 'gmail',
+                                            auth: {
+                                                user: 'jagdeepbajwa24@gmail.com',
+                                                pass: 'avnoor24'
+                                            }
+                                        });
+
+                                        var mailOptions = {
+                                            from: 'jagdeepbajwa24@gmail.com',
+                                            to: `${email}`,
+                                            subject: 'Change Password',
+                                            // text: `Please click on the link to change password http://localhost:3001/auth/password. After login please change your password`,
+                                            html: '<p>You requested for reset password, kindly use this <a href="http://localhost:3001/auth/password?token=' + token + '">link</a> to reset your password</p>'
+                                        };
+
+                                        transporter.sendMail(mailOptions, function (error, info) {
+                                            if (error) {
+                                                console.log("Error while sending mail", error);
+                                            } else {
+                                                console.log('Email sent: ' + info.response);
+                                            }
+                                        });
+                                    }
+                                })
+                            } else {
+
+                            }
+                        }
+                    })
+
+                });
+            }else{
+                res.status("401").send()
+            }
         }
     })
-    let check = true;
-    // for (let i = 0; i < 5; i++)
 
-    console.log("i", num);
-
-    require('crypto').randomBytes(48, async function (err, buffer) {
-        token = buffer.toString('hex');
-        console.log("==========>", token)
-        let sql = `SELECT COUNT(*) AS num FROM resetPassword WHERE token="${token}"`;
-        await dbconn.query(sql, function (err, result) {
-            if (err) throw err;
-            else {
-                console.log("result: ", result[0].num);
-                num = result[0].num;
-                if (num == 0) {
-                    console.log("here  ")
-                    sql = `UPDATE resetPassword SET status = "expires" WHERE userId="${userId}" AND status = "unused";`;
-                    dbconn.query(sql, (err, result) => {
-                        if (err) throw err;
-                        else {
-                            console.log("<<<<< ", result, " >>>>>>>>>")
-                        }
-                    })
-                    sql = `INSERT INTO resetPassword(token,userId) VALUES("${token}","${userId}");`;
-                    dbconn.query(sql, (err, result) => {
-                        if (err) throw err;
-                        else {
-
-                            res.status("200").send(result);
-                            var transporter = nodemailer.createTransport({
-                                service: 'gmail',
-                                auth: {
-                                    user: 'jagdeepbajwa24@gmail.com',
-                                    pass: 'avnoor24'
-                                }
-                            });
-
-                            var mailOptions = {
-                                from: 'jagdeepbajwa24@gmail.com',
-                                to: `${email}`,
-                                subject: 'Change Password',
-                                // text: `Please click on the link to change password http://localhost:3001/auth/password. After login please change your password`,
-                                html: '<p>You requested for reset password, kindly use this <a href="http://localhost:3001/auth/password?token=' + token + '">link</a> to reset your password</p>'
-                            };
-
-                            transporter.sendMail(mailOptions, function (error, info) {
-                                if (error) {
-                                    console.log("Error while sending mail", error);
-                                } else {
-                                    console.log('Email sent: ' + info.response);
-                                }
-                            });
-                        }
-                    })
-                } else {
-
-                }
-            }
-        })
-
-    });
 })
 
 app.post('/validtoken', (req, res) => {
@@ -532,30 +549,30 @@ app.put('/:Id', (req, res) => {
     let account_type = req.body.account_type;
     let useremail;
     let sql = `SELECT email FROM users WHERE Id=${Id};`;
-    dbconn.query(sql,(err, result)=>{
-        if(err) throw err;
-        else{
+    dbconn.query(sql, (err, result) => {
+        if (err) throw err;
+        else {
             console.log(result[0].email);
             useremail = result[0].email;
             sql = `UPDATE verify SET status="expires" WHERE useremail="${useremail}" AND status="notused";`;
-            dbconn.query(sql, (err,result)=>{
-                if(err) throw err;
-                else{
+            dbconn.query(sql, (err, result) => {
+                if (err) throw err;
+                else {
                     console.log(result);
                 }
 
             })
-            if(email===useremail){
+            if (email === useremail) {
                 console.log("email not changed");
                 sql = `UPDATE users SET fname="${fname}", email="${email}", account_type="${account_type}" WHERE Id=${Id};`;
-                    dbconn.query(sql, function (err, result) {
-                        if (err) throw err;
-                        else{
-                            res.send(result);
-                        }
-                    })
-            }else{
-                console.log("email has been changed",useremail,"<==before and after==>",email);
+                dbconn.query(sql, function (err, result) {
+                    if (err) throw err;
+                    else {
+                        res.send(result);
+                    }
+                })
+            } else {
+                console.log("email has been changed", useremail, "<==before and after==>", email);
                 require('crypto').randomBytes(48, async function (err, buffer) {
                     token = buffer.toString('hex');
                     console.log("==========>", token)
@@ -564,7 +581,7 @@ app.put('/:Id', (req, res) => {
                         if (err) throw err;
                         else {
                             console.log(result);
-                            
+
                             sql = `UPDATE verify SET status="expires" WHERE useremail="${email}" AND status="notused";`;
                             dbconn.query(sql, (err, result) => {
                                 if (err) throw err;
@@ -586,14 +603,14 @@ app.put('/:Id', (req, res) => {
                                     pass: 'avnoor24'
                                 }
                             });
-            
+
                             var mailOptions = {
                                 from: 'jagdeepbajwa24@gmail.com',
                                 to: `${email}`,
                                 subject: 'Verification Email',
                                 html: `<p>It look like you have changed your email Id.</p><p>Please Click and verify your self</p><br><br> <button><a href="http://localhost:3001/auth/verified?token=${token}">verify your email</a></button><br>`
                             };
-            
+
                             transporter.sendMail(mailOptions, function (error, info) {
                                 if (error) {
                                     console.log("Error while sending mail", error);
@@ -608,8 +625,8 @@ app.put('/:Id', (req, res) => {
             }
         }
     })
-    
-    
+
+
 
 });
 
@@ -643,7 +660,7 @@ app.put('/password/:Id', (req, res) => {
                     }
                 })
             } else {
-                res.send("401");
+                res.status("401").send("wrong old password");
             }
         }
     })
