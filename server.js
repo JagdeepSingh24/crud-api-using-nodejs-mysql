@@ -9,12 +9,30 @@ const mysql = require("mysql");
 const req = require('express/lib/request');
 const SendmailTransport = require('nodemailer/lib/sendmail-transport');
 const { response } = require('express');
-
+var multer  = require('multer');
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({
     extended: false
 }));
 // var token = jwt.sign({foo:bar},)
+app.use(express.static(__dirname + '/public'));
+app.use('/uploads', express.static('uploads'));
+var storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+      cb(null, './uploads')
+      console.log("here in destination in storage")
+    },
+    filename: function (req, file, cb) {
+      cb(null, file.originalname)
+      console.log("here in filename in storage")
+    }
+})
+
+
+var upload = multer({ 
+    storage: storage,    
+})
+
 app.get('/', function (req, res) {
     return res.send({ error: true, message: 'hello' })
 });
@@ -35,6 +53,7 @@ app.use("*", function (req, res, next) {
     if (req.originalUrl == "/verify") return next();
     if (req.originalUrl == "/resend") return next();
     if (req.originalUrl == "/count") return next();
+    if (req.originalUrl == "/image") return next();
     let token = req.headers['authorization']
     if (token && token.startsWith("Bearer ")) {
         token = token.slice(7, token.length)
@@ -66,6 +85,32 @@ var dbconn = mysql.createConnection({
 dbconn.connect((err) => {
     if (err) throw err;
     else console.log("Connected");
+});
+
+app.put("/image/:id",upload.single("image"),async (req,res)=>{
+    
+    console.log("here in image")
+    
+    console.log("=======",req.body);
+    console.log("=====req.file", req.file)
+    
+    if(req.file){
+
+        const pathname=req.file.path;
+        console.log("pathname",pathname);
+        console.log("req.file",req.file);
+        res.send({file: req.file,
+            path:pathname});
+    }
+    image= req.file.path;
+    Id = req.params.id;
+    let sql=`UPDATE users SET image="${image}" WHERE Id="${Id}";`;
+    dbconn.query(sql,(err, result)=>{
+        if(err) throw err;
+        else{
+            console.log(result);
+        }
+    })
 });
 
 app.get("/count", (req,res)=>{
